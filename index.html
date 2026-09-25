@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>単語カード Tango Cards</title>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #f4efe1;
+    min-height: 100%;
+  }
+  a { color: inherit; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.28.4/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+const CLEAR_TARGET = 2;
+
+const SETS = [
+  {
+    id: "poweron1-l5-1",
+    name: "PowerOn1: L5-1",
+    pairs: [
+      ["よく知られた", "familiar"],
+      ["草", "herb"],
+      ["...の中の1つ", "one of ..."],
+      ["...によく知られている", "be familiar to ..."],
+      ["...について知っている", "know about ..."],
+      ["...に由来する，...から生じる", "come from ..."],
+      ["茎", "stem"],
+      ["収穫する", "harvest"],
+      ["技術", "technique"],
+      ["非常に大きい", "enormous"],
+    ],
+  },
+];
+
+function buildCards(pairs) {
+  const cards = [];
+  pairs.forEach(([jp, en], i) => {
+    cards.push({ id: `${i}-e2j`, direction: "en2jp", front: en, back: jp, jp, en });
+    cards.push({ id: `${i}-j2e`, direction: "jp2en", front: jp, back: en, jp, en });
+  });
+  return cards;
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function reinsert(pile, cardId) {
+  if (pile.length === 0) return [cardId];
+  const minPos = Math.min(1, pile.length);
+  const pos = minPos + Math.floor(Math.random() * (pile.length - minPos + 1));
+  const next = [...pile];
+  next.splice(pos, 0, cardId);
+  return next;
+}
+
+function alcUrl(word) {
+  return `https://eow.alc.co.jp/sp/search.html?q=${encodeURIComponent(word)}`;
+}
+
+function hasLookup(word) {
+  return !word.includes("...");
+}
+
+const stampFill = (n) => Array.from({ length: CLEAR_TARGET }, (_, i) => i < n);
+
+function Stamp({ filled }) {
+  return (
+    <span
+      style={{
+        width: 22,
+        height: 22,
+        borderRadius: "50%",
+        border: `2px solid ${filled ? "#b23a2f" : "#d9d2bf"}`,
+        background: filled ? "#b23a2f" : "transparent",
+        display: "inline-block",
+      }}
+    />
+  );
+}
+
+function App() {
+  const [view, setView] = useState("pick");
+  const [activeSet, setActiveSet] = useState(null);
+  const [pile, setPile] = useState([]);
+  const [counts, setCounts] = useState({});
+  const [clearedCount, setClearedCount] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+
+  function startSet(setDef) {
+    const cards = buildCards(setDef.pairs);
+    setActiveSet({ id: setDef.id, name: setDef.name, cards });
+    setCounts({});
+    setClearedCount(0);
+    setPile(shuffle(cards.map((c) => c.id)));
+    setRevealed(false);
+    setView("play");
+  }
+
+  function currentCard() {
+    if (!activeSet || pile.length === 0) return null;
+    return activeSet.cards.find((c) => c.id === pile[0]) || null;
+  }
+
+  function handleAnswer(knew) {
+    const card = currentCard();
+    if (!card) return;
+    const nextCounts = { ...counts };
+    let nextPile = pile.slice(1);
+    let clearedDelta = 0;
+
+    if (knew) {
+      const n = (counts[card.id] || 0) + 1;
+      nextCounts[card.id] = n;
+      if (n >= CLEAR_TARGET) {
+        clearedDelta = 1;
+      } else {
+        nextPile = reinsert(nextPile, card.id);
+      }
+    } else {
+      nextCounts[card.id] = 0;
+      nextPile = reinsert(nextPile, card.id);
+    }
+
+    setCounts(nextCounts);
+    setPile(nextPile);
+    setClearedCount((c) => c + clearedDelta);
+    setRevealed(false);
+
+    if (nextPile.length === 0) {
+      setView("done");
+    }
+  }
+
+  function resetToPick() {
+    setView("pick");
+    setActiveSet(null);
+    setPile([]);
+    setCounts({});
+    setClearedCount(0);
+  }
+
+  const wrap = {
+    maxWidth: 440,
+    margin: "0 auto",
+    fontFamily: "'Hiragino Maru Gothic ProN', 'Yu Gothic', 'Segoe UI', system-ui, sans-serif",
+    color: "#2c2a24",
+    padding: "24px 20px 60px",
+    minHeight: 500,
+  };
+  const serif = "Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', serif";
+  const cardStyle = { background: "#fffdf7", border: "1px solid #e4dcc4", borderRadius: 10 };
+  const btnPrimary = {
+    background: "#22406b", color: "#fbf7ec", border: "none", borderRadius: 8,
+    padding: "12px 18px", fontSize: 15, fontWeight: 600, cursor: "pointer",
+  };
+  const btnGhost = {
+    background: "transparent", color: "#22406b", border: "1px solid #22406b",
+    borderRadius: 8, padding: "12px 18px", fontSize: 15, fontWeight: 600, cursor: "pointer",
+  };
+
+  return (
+    <div style={{ background: "#f4efe1", minHeight: 500 }}>
+      <div style={wrap}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 28 }}>
+          <h1 style={{ fontFamily: serif, fontSize: 24, margin: 0, color: "#22406b" }}>
+            単語カード <span style={{ color: "#b23a2f" }}>Tango Cards</span>
+          </h1>
+          {view !== "pick" && (
+            <button onClick={resetToPick} style={{ background: "none", border: "none", color: "#7a7462", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>
+              別のセットを選ぶ
+            </button>
+          )}
+        </div>
+
+        {view === "pick" && (
+          <div style={{ display: "grid", gap: 10 }}>
+            <h2 style={{ fontSize: 16, margin: "0 0 4px", color: "#22406b" }}>セットを選んでください</h2>
+            {SETS.map((s) => (
+              <button
+                key={s.id}
+                style={{ ...cardStyle, textAlign: "left", padding: "14px 16px", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#2c2a24" }}
+                onClick={() => startSet(s)}
+              >
+                {s.name}
+                <div style={{ fontSize: 12, fontWeight: 400, color: "#8a8468" }}>単語数: {s.pairs.length}</div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {(view === "play" || view === "done") && activeSet && (
+          <div style={{ display: "grid", gap: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#5c5744" }}>
+              <span>{activeSet.name}</span>
+              <span>覚えた: {clearedCount} ・ 残り: {pile.length}</span>
+            </div>
+
+            {view === "play" && currentCard() && (
+              <>
+                <p style={{ fontSize: 14, color: "#5c5744", margin: 0, textAlign: "center" }}>
+                  {currentCard().direction === "en2jp" ? "この単語は日本語で何と言いますか？" : "この単語は英語で何と言いますか？"}
+                </p>
+                <div
+                  onClick={() => setRevealed(true)}
+                  style={{ ...cardStyle, minHeight: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, cursor: revealed ? "default" : "pointer", padding: 24 }}
+                >
+                  <div style={{ fontSize: 12, color: "#8a8468" }}>
+                    {currentCard().direction === "en2jp" ? "English to Japanese" : "Japanese to English"}
+                  </div>
+                  <div style={{ fontFamily: serif, fontSize: 30, textAlign: "center" }}>{currentCard().front}</div>
+                  {revealed && (
+                    <div style={{ fontSize: 22, color: "#22406b", borderTop: "1px solid #e4dcc4", paddingTop: 12, width: "100%", textAlign: "center" }}>
+                      {currentCard().back}
+                    </div>
+                  )}
+                  {revealed && hasLookup(currentCard().en) && (
+                    <a
+                      href={alcUrl(currentCard().en)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ fontSize: 12, color: "#8a8468", textDecoration: "underline" }}
+                    >
+                      ALCで<span style={{ color: "#2f6f5e", fontWeight: 600 }}>{currentCard().en}</span>を調べる
+                    </a>
+                  )}
+                  {!revealed && <div style={{ fontSize: 12, color: "#b3ab8a" }}>タップして答えを見る</div>}
+                </div>
+
+                <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                  {stampFill(counts[currentCard().id] || 0).map((f, i) => <Stamp key={i} filled={f} />)}
+                </div>
+
+                {revealed && (
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button style={{ ...btnGhost, flex: 1 }} onClick={() => handleAnswer(false)}>
+                      Still learning<br />まだ
+                    </button>
+                    <button style={{ ...btnPrimary, flex: 1 }} onClick={() => handleAnswer(true)}>
+                      I knew it<br />わかった
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {view === "done" && (
+              <div style={{ ...cardStyle, padding: 28, textAlign: "center", display: "grid", gap: 10 }}>
+                <div style={{ fontFamily: serif, fontSize: 22, color: "#22406b" }}>全部クリアしました！</div>
+                <p style={{ fontSize: 14, color: "#5c5744", margin: 0 }}>
+                  このセットの単語は全て2回正解しました。単語をもっと練習できるゲームは近日公開予定です。
+                </p>
+                <div style={{ display: "grid", gap: 6, textAlign: "left", borderTop: "1px solid #e4dcc4", paddingTop: 14 }}>
+                  {activeSet.cards.filter((c) => c.direction === "en2jp").map((c) => (
+                    <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 15, borderBottom: "1px solid #efe9d8", padding: "4px 0" }}>
+                      <span>{c.jp}</span>
+                      {hasLookup(c.en) ? (
+                        <a href={alcUrl(c.en)} target="_blank" rel="noopener noreferrer" style={{ color: "#2f6f5e", fontWeight: 600, textDecoration: "underline" }}>
+                          {c.en}
+                        </a>
+                      ) : (
+                        <span style={{ color: "#2c2a24", fontWeight: 600 }}>{c.en}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button style={btnGhost} onClick={resetToPick}>別のセットを選ぶ</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
