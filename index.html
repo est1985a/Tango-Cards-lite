@@ -30,21 +30,47 @@ const { useState } = React;
 
 const CLEAR_TARGET = 2;
 
-const SETS = [
+// ---- word sets, grouped by textbook -----------------------------------
+// To add a new textbook, add another object to GROUPS with its own id,
+// name, and a "sets" array. To add a lesson to an existing textbook,
+// add another entry to that group's "sets" array.
+const GROUPS = [
   {
-    id: "poweron1-l5-1",
-    name: "PowerOn1: L5-1",
-    pairs: [
-      ["よく知られた", "familiar"],
-      ["草", "herb"],
-      ["...の中の1つ", "one of ..."],
-      ["...によく知られている", "be familiar to ..."],
-      ["...について知っている", "know about ..."],
-      ["...に由来する，...から生じる", "come from ..."],
-      ["茎", "stem"],
-      ["収穫する", "harvest"],
-      ["技術", "technique"],
-      ["非常に大きい", "enormous"],
+    id: "poweron1",
+    name: "PowerOn1",
+    sets: [
+      {
+        id: "poweron1-l5-1",
+        name: "L5-1",
+        pairs: [
+          ["よく知られた", "familiar"],
+          ["草", "herb"],
+          ["...の中の1つ", "one of ..."],
+          ["...によく知られている", "be familiar to ..."],
+          ["...について知っている", "know about ..."],
+          ["...に由来する，...から生じる", "come from ..."],
+          ["茎", "stem"],
+          ["収穫する", "harvest"],
+          ["技術", "technique"],
+          ["非常に大きい", "enormous"],
+        ],
+      },
+      {
+        id: "poweron1-l5-2",
+        name: "L5-2",
+        pairs: [
+          ["茎", "stem"],
+          ["収穫する", "harvest"],
+          ["技術", "technique"],
+          ["繊維", "fiber"],
+          ["加工する", "process"],
+          ["名刺", "business card"],
+          ["折り紙", "origami"],
+          ["～から…を作る", "make ... from ~"],
+          ["…を（投げ）捨てる", "throw ... away / throw away ..."],
+          ["…を切り倒す", "cut ... down / cut down ..."],
+        ],
+      },
     ],
   },
 ];
@@ -102,12 +128,18 @@ function Stamp({ filled }) {
 }
 
 function App() {
-  const [view, setView] = useState("pick");
+  const [view, setView] = useState("groups"); // groups | sets | play | done
+  const [activeGroup, setActiveGroup] = useState(null);
   const [activeSet, setActiveSet] = useState(null);
   const [pile, setPile] = useState([]);
   const [counts, setCounts] = useState({});
   const [clearedCount, setClearedCount] = useState(0);
   const [revealed, setRevealed] = useState(false);
+
+  function pickGroup(g) {
+    setActiveGroup(g);
+    setView("sets");
+  }
 
   function startSet(setDef) {
     const cards = buildCards(setDef.pairs);
@@ -154,8 +186,17 @@ function App() {
     }
   }
 
-  function resetToPick() {
-    setView("pick");
+  function resetToGroups() {
+    setView("groups");
+    setActiveGroup(null);
+    setActiveSet(null);
+    setPile([]);
+    setCounts({});
+    setClearedCount(0);
+  }
+
+  function resetToSets() {
+    setView("sets");
     setActiveSet(null);
     setPile([]);
     setCounts({});
@@ -180,25 +221,51 @@ function App() {
     background: "transparent", color: "#22406b", border: "1px solid #22406b",
     borderRadius: 8, padding: "12px 18px", fontSize: 15, fontWeight: 600, cursor: "pointer",
   };
+  const navLink = {
+    background: "none", border: "none", color: "#7a7462", fontSize: 13,
+    cursor: "pointer", textDecoration: "underline", padding: 0,
+  };
 
   return (
     <div style={{ background: "#f4efe1", minHeight: 500 }}>
       <div style={wrap}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 28 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
           <h1 style={{ fontFamily: serif, fontSize: 24, margin: 0, color: "#22406b" }}>
             単語カード <span style={{ color: "#b23a2f" }}>Tango Cards</span>
           </h1>
-          {view !== "pick" && (
-            <button onClick={resetToPick} style={{ background: "none", border: "none", color: "#7a7462", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>
-              別のセットを選ぶ
-            </button>
+        </div>
+
+        <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+          {view === "sets" && (
+            <button onClick={resetToGroups} style={navLink}>教科書を選び直す</button>
+          )}
+          {(view === "play" || view === "done") && (
+            <button onClick={resetToSets} style={navLink}>別のセットを選ぶ</button>
           )}
         </div>
 
-        {view === "pick" && (
+        {view === "groups" && (
           <div style={{ display: "grid", gap: 10 }}>
-            <h2 style={{ fontSize: 16, margin: "0 0 4px", color: "#22406b" }}>セットを選んでください</h2>
-            {SETS.map((s) => (
+            <h2 style={{ fontSize: 16, margin: "0 0 4px", color: "#22406b" }}>教科書を選んでください</h2>
+            {GROUPS.map((g) => (
+              <button
+                key={g.id}
+                style={{ ...cardStyle, textAlign: "left", padding: "14px 16px", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#2c2a24" }}
+                onClick={() => pickGroup(g)}
+              >
+                📘 {g.name}
+                <div style={{ fontSize: 12, fontWeight: 400, color: "#8a8468" }}>
+                  セット数: {g.sets.length}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {view === "sets" && activeGroup && (
+          <div style={{ display: "grid", gap: 10 }}>
+            <h2 style={{ fontSize: 16, margin: "0 0 4px", color: "#22406b" }}>{activeGroup.name} - セットを選んでください</h2>
+            {activeGroup.sets.map((s) => (
               <button
                 key={s.id}
                 style={{ ...cardStyle, textAlign: "left", padding: "14px 16px", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#2c2a24" }}
@@ -214,7 +281,7 @@ function App() {
         {(view === "play" || view === "done") && activeSet && (
           <div style={{ display: "grid", gap: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#5c5744" }}>
-              <span>{activeSet.name}</span>
+              <span>{activeGroup ? `${activeGroup.name}: ${activeSet.name}` : activeSet.name}</span>
               <span>覚えた: {clearedCount} ・ 残り: {pile.length}</span>
             </div>
 
@@ -287,7 +354,7 @@ function App() {
                     </div>
                   ))}
                 </div>
-                <button style={btnGhost} onClick={resetToPick}>別のセットを選ぶ</button>
+                <button style={btnGhost} onClick={resetToSets}>別のセットを選ぶ</button>
               </div>
             )}
           </div>
